@@ -7,10 +7,23 @@ namespace LibISULR.Records
 {
     public class DeleteFileRecord : BasePathListRecord<DeleteFileFlags>
     {
+        public DeleteFileRecord(DeleteFileFlags flags = DeleteFileFlags.DisableFsRedir)
+            : base((int)flags)
+        {
+            Paths = new List<string>();
+        }
+
         public DeleteFileRecord(int flags, byte[] data)
           : base(flags)
         {
             Paths = new BufferTools(data).GetStringList();
+        }
+
+        public static DeleteFileRecord Create(string path, DeleteFileFlags flags = DeleteFileFlags.DisableFsRedir)
+        {
+            DeleteFileRecord record = new DeleteFileRecord(flags);
+            record.Paths.Add(path);
+            return record;
         }
 
         public override int UpdateContent(Span<byte> buffer)
