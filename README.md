@@ -15,4 +15,4 @@ This project was initially created by [**preseverence**](https://github.com/pres
 * Compiled code sections will be skipped
 
 ## License
-The initial license is using [The DWTFYWT LICENSE](https://github.com/CollapseLauncher/InnoSetupLogParser/blob/main/LICENSE).
+The initial license is using [The WTFPL License](https://github.com/CollapseLauncher/InnoSetupLogParser/blob/main/LICENSE).
