@@ -160,7 +160,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                 //     Seek the stream based on the struct size -> Write the records -> Back to the last stream position
                 //     -> Set the size based on Stream size -> Write the TUninstallLogHeader struct
                 if (!stream.CanSeek)
-                    WriteTUninstallLogHeader(stream, -1, Header);
+                    WriteTUninstallLogHeader(stream, -1, this.Records, Header);
                 else
                 {
                     int tHeadStructSize = Marshal.SizeOf<TUninstallLogHeader>();
@@ -203,7 +203,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                 if (stream.CanSeek)
                 {
                     stream.Seek(lastStreamPosition, SeekOrigin.Begin);
-                    WriteTUninstallLogHeader(stream, (int)stream.Length, Header);
+                    WriteTUninstallLogHeader(stream, (int)stream.Length, this.Records, Header);
                 }
             }
             catch { throw; }
@@ -214,7 +214,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             }
         }
 
-        private static void WriteTUninstallLogHeader(Stream stream, int lengthOfStream, TUninstallLogHeader header)
+        private static void WriteTUninstallLogHeader(Stream stream, int lengthOfStream, List<BaseRecord> records, TUninstallLogHeader header)
         {
             int i = 0; // Dummy
             int sizeOf = Marshal.SizeOf<TUninstallLogHeader>(); // Get the size of the struct
@@ -225,6 +225,9 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             {
                 // Reset the fileEndOffset
                 header.FileEndOffset = lengthOfStream;
+
+                // Update the record counts
+                header.RecordsCount = records.Count;
 
                 // Serialize the struct into bytes
                 _ = TrySerializeStruct(header, ref i, sizeOf, structBuffer);
