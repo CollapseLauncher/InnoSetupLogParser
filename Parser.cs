@@ -50,6 +50,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             set => WriteStringToByte(ref value, AppName);
         }
 
+#if NET
         private string ReadStringFromByte(byte[] target)
         {
             int offset = Array.IndexOf<byte>(target, 0);
@@ -63,6 +64,28 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             int writtenOffset = Encoding.UTF8.GetBytes(input, target);
             target.AsSpan(writtenOffset).Fill(0);
         }
+#else
+        private unsafe string ReadStringFromByte(byte[] target)
+        {
+            int offset = Array.IndexOf<byte>(target, 0);
+            fixed (byte* ptr = target)
+            {
+                string result = Encoding.UTF8.GetString(ptr, offset);
+                return result;
+            }
+        }
+
+        private unsafe void WriteStringToByte(ref string input, byte[] target)
+        {
+            if (input.Length > target.Length) throw new ArgumentOutOfRangeException($"The input string cannot be more than {target.Length} characters!");
+            fixed (char* charPtr = input)
+            fixed (byte* bufferPtr = target)
+            {
+                int writtenOffset = Encoding.UTF8.GetBytes(charPtr, input.Length, bufferPtr, target.Length);
+                target.AsSpan(writtenOffset).Fill(0);
+            }
+        }
+#endif
     }
 
     [StructLayout(LayoutKind.Sequential, Size = 0xC)]
@@ -125,21 +148,26 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             };
 
             // Assign the stream to the reader and leave it open
-            using CrcBridgeStream crcStream = new CrcBridgeStream(stream, true, skipCrcCheck);
+            using (CrcBridgeStream crcStream = new CrcBridgeStream(stream, true, skipCrcCheck))
+            {
+                // Start reading records and its header
+                int start = 0;
+            ReadHeaderRecords:
+                ReadTStructure(crcStream, out TUninstallFileRec uninstallFileRec); // Read the header and load it into the struct
+                byte[] buffer = new byte[uninstallFileRec.DataSize]; // Initialize the buffer for the data
+#if NET
+                crcStream.ReadExactly(buffer); // Then read the crc stream to the buffer
+#else
+                crcStream.Read(buffer, 0, buffer.Length);
+#endif
 
-            // Start reading records and its header
-            int start = 0;
-        ReadHeaderRecords:
-            ReadTStructure(crcStream, out TUninstallFileRec uninstallFileRec); // Read the header and load it into the struct
-            byte[] buffer = new byte[uninstallFileRec.DataSize]; // Initialize the buffer for the data
-            crcStream.ReadExactly(buffer); // Then read the crc stream to the buffer
+                // Try create the record and add it into the record list
+                result.Records.Add(RecordFactory.CreateRecord(uninstallFileRec.TUninstallRecTyp, uninstallFileRec.ExtraData, buffer));
+                if (++start < headerStruct.RecordsCount) goto ReadHeaderRecords; // Do loop if the record still remains
 
-            // Try create the record and add it into the record list
-            result.Records.Add(RecordFactory.CreateRecord(uninstallFileRec.TUninstallRecTyp, uninstallFileRec.ExtraData, buffer));
-            if (++start < headerStruct.RecordsCount) goto ReadHeaderRecords; // Do loop if the record still remains
-
-            // Return the list
-            return result;
+                // Return the list
+                return result;
+            }
         }
 
         public void Save(Stream stream)
@@ -192,7 +220,11 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                         _ = TrySerializeStruct(dataRec, ref offset, headerSizeOf, writeBuffer);
 
                         // Write the buffer with the size of headerSizeOf and dataLen
+#if NET
                         crcStream.Write(writeBuffer.AsSpan(0, headerSizeOf + (int)dataLen));
+#else
+                        crcStream.Write(writeBuffer, 0, headerSizeOf + (int)dataLen);
+#endif
                     }
                     // Finalize the crc block inside of CrcBridgeStream
                     crcStream.FinalizeBlock();
@@ -234,7 +266,11 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
 
                 // Get the hash
                 uint crc32Header = Crc32.HashToUInt32(structBuffer.AsSpan(0, sizeOf - 4));
+#if NET
                 MemoryMarshal.Write(structBuffer.AsSpan(sizeOf - 4), crc32Header);
+#else
+                MemoryMarshal.Write(structBuffer.AsSpan(sizeOf - 4), ref crc32Header);
+#endif
 
                 // Write the buffer into stream
                 stream.Write(structBuffer, 0, sizeOf);
@@ -257,7 +293,11 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             try
             {
                 // Read the stream and store into buffer
+#if NET
                 stream.ReadExactly(structBuffer, 0, sizeOf);
+#else
+                stream.Read(structBuffer, 0, sizeOf);
+#endif
 
                 // Deserialize the struct
                 if (!TryDeserializeStruct<TUninstallLogHeader>(structBuffer, ref i, sizeOf, out header))
@@ -286,7 +326,11 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             try
             {
                 // Read the stream and store into buffer
+#if NET
                 stream.ReadExactly(structBuffer, 0, sizeOf);
+#else
+                stream.Read(structBuffer, 0, sizeOf);
+#endif
 
                 // Deserialize the struct
                 if (!TryDeserializeStruct<T>(structBuffer, ref i, sizeOf, out header))

@@ -31,13 +31,24 @@ namespace LibISULR
             byte type = data[index++];
             if (eof = type == 0xFF) // If the type is 0xFF (end), then set eof = true and return 0
                 return 0;
-
+#if NET
             return type switch
             {
                 0xFD => ReadUShort(data, ref index), // UTF-8 string length Type
                 0xFE => ReadInt(data, ref index), // Unicode/UTF-16 string length Type
                 _ => type // Type as the length
             };
+#else
+            switch (type)
+            {
+                case 0xFD:
+                    return ReadUShort(data, ref index);
+                case 0xFE:
+                    return ReadInt(data, ref index);
+                default:
+                    return type;
+            }
+#endif
         }
 
         public unsafe string ReadString()
@@ -67,11 +78,16 @@ namespace LibISULR
         {
             bool isUTF16 = encoding.GetType() == Encoding.Unicode.GetType();
             byte strType = (byte)(isUTF16 ? 0xFE : 0xFD);
+#if NET
             MemoryMarshal.Write(buffer, strType);
+#else
+            MemoryMarshal.Write(buffer, ref strType);
+#endif
 
             int offset = 1;
             int strByteLen = inputString.Length * (isUTF16 ? 2 : 1);
 
+#if NET
             if (isUTF16)
                 MemoryMarshal.Write(buffer.Slice(offset), -strByteLen);
             else
@@ -79,7 +95,20 @@ namespace LibISULR
 
             offset += isUTF16 ? 4 : 2;
             offset += encoding.GetBytes(inputString, buffer.Slice(offset));
+#else
+            int negativeStrByteLen = -strByteLen;
+            if (isUTF16)
+                MemoryMarshal.Write(buffer.Slice(offset), ref negativeStrByteLen);
+            else
+                MemoryMarshal.Write(buffer.Slice(offset), ref negativeStrByteLen);
 
+            offset += isUTF16 ? 4 : 2;
+            fixed (byte* bufferPtr = buffer.Slice(offset))
+            fixed (char* inputStringPtr = inputString)
+            {
+                offset += encoding.GetBytes(inputStringPtr, inputString.Length, bufferPtr, buffer.Length);
+            }
+#endif
             return offset;
         }
 
@@ -87,13 +116,22 @@ namespace LibISULR
         {
             bool isDateEmpty = DateTime.MinValue == inputDateTime;
             byte lenType = (byte)(isDateEmpty ? 0xFF : 0xFE);
+#if NET
             MemoryMarshal.Write(buffer, lenType);
+#else
+            MemoryMarshal.Write(buffer, ref lenType);
+#endif
 
             int offset = 1;
             if (isDateEmpty) return offset;
 
             Span<ushort> dateTimeInUShorts = new ushort[8];
+#if NET
             MemoryMarshal.Write(buffer.Slice(offset), -(dateTimeInUShorts.Length * 2));
+#else
+            int dateTimeLenNegative = -(dateTimeInUShorts.Length * 2);
+            MemoryMarshal.Write(buffer.Slice(offset), ref dateTimeLenNegative);
+#endif
             offset += 4;
 
             dateTimeInUShorts[0] = (ushort)inputDateTime.Year;
@@ -148,10 +186,18 @@ namespace LibISULR
         public int WriteBytes(Span<byte> buffer, ReadOnlySpan<byte> source)
         {
             byte lenType = 0xFE;
+#if NET
             MemoryMarshal.Write(buffer, lenType);
 
             int offset = 1;
             MemoryMarshal.Write(buffer.Slice(offset), -source.Length);
+#else
+            MemoryMarshal.Write(buffer, ref lenType);
+
+            int offset = 1;
+            int sourceLengthNegative = -source.Length;
+            MemoryMarshal.Write(buffer.Slice(offset), ref sourceLengthNegative);
+#endif
             offset += 4;
             if (source.Length == 0) return offset;
 
@@ -204,12 +250,25 @@ namespace LibISULR
             if (type == 0xFF) // If the type is 0xFF (end), then set eof = true and return 0
                 return Array.Empty<string>();
 
+#if NET
             int byteLength = type switch
             {
                 0xFD => ReadUShort(data, ref index), // UTF-8 string length Type
                 0xFE => ReadInt(data, ref index), // Unicode/UTF-16 string length Type
                 _ => type // Type as the length
             };
+#else
+            int byteLength = type;
+            switch (type)
+            {
+                case 0xFD:
+                    byteLength = ReadUShort(data, ref index);
+                    break;
+                case 0xFE:
+                    byteLength = ReadInt(data, ref index);
+                    break;
+            }
+#endif
 
             if (byteLength == 0) return Array.Empty<string>();
 
@@ -246,27 +305,44 @@ namespace LibISULR
             return offset;
         }
 
+#if NET
         public int WriteStringArray(Span<byte> buffer, Encoding encoding, string[] inputString)
+#else
+        public unsafe int WriteStringArray(Span<byte> buffer, Encoding encoding, string[] inputString)
+#endif
         {
             bool isUTF16 = encoding.GetType() == Encoding.Unicode.GetType();
             byte strType = (byte)(isUTF16 ? 0xFE : 0xFD);
+#if NET
             MemoryMarshal.Write(buffer, strType);
+#else
+            MemoryMarshal.Write(buffer, ref strType);
+#endif
             int offset = 1;
 
             int count = inputString.Length / (isUTF16 ? 2 : 1);
             int totalOfStringSize = inputString.Sum(x => x.Length * (isUTF16 ? 2 : 1));
             int totalOfStringLengthSize = inputString.Length * 4;
             int calculatedStringBufferSize = 4 + totalOfStringLengthSize + totalOfStringSize;
+#if NET
             MemoryMarshal.Write(buffer.Slice(offset), count == 0 ? 0 : -calculatedStringBufferSize);
+#else
+            int negativeStringBufferSize = count == 0 ? 0 : -calculatedStringBufferSize;
+            MemoryMarshal.Write(buffer.Slice(offset), ref negativeStringBufferSize);
+#endif
             offset += 4;
 
             if (count == 0) goto WriteStringArrayEOF;
-
+#if NET
             MemoryMarshal.Write(buffer.Slice(offset), count);
+#else
+            MemoryMarshal.Write(buffer.Slice(offset), ref count);
+#endif
             offset += 4;
 
             int stringArrayIndex = 0;
         WriteStringArray:
+#if NET
             if (isUTF16)
                 MemoryMarshal.Write(buffer.Slice(offset), inputString[stringArrayIndex].Length);
             else
@@ -274,6 +350,26 @@ namespace LibISULR
             offset += isUTF16 ? 4 : 2;
             offset += encoding.GetBytes(inputString[stringArrayIndex++], buffer.Slice(offset));
             if (stringArrayIndex < inputString.Length) goto WriteStringArray;
+#else
+            if (isUTF16)
+            {
+                int len = inputString[stringArrayIndex].Length;
+                MemoryMarshal.Write(buffer.Slice(offset), ref len);
+            }
+            else
+            {
+                ushort len = (ushort)inputString[stringArrayIndex].Length;
+                MemoryMarshal.Write(buffer.Slice(offset), ref len);
+            }
+            offset += isUTF16 ? 4 : 2;
+            fixed (char* inputStringPtr = inputString[stringArrayIndex])
+            fixed (byte* bufferPtr = buffer.Slice(offset))
+            {
+                int len = inputString[stringArrayIndex].Length;
+                offset += encoding.GetBytes(inputStringPtr, len, bufferPtr, buffer.Length);
+            }
+            if (stringArrayIndex < inputString.Length) goto WriteStringArray;
+#endif
 
             WriteStringArrayEOF:
             buffer[offset++] = 0xFF;

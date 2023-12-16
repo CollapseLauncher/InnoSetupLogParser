@@ -59,7 +59,11 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             int blockHeaderSizeOf = Marshal.SizeOf<TUninstallCrcHeader>();
             byte[] headerBuffer = new byte[blockHeaderSizeOf];
             InnoUninstLog.TrySerializeStruct(blockHeader, ref offsetDummy, blockHeaderSizeOf, headerBuffer);
+#if NET
             sourceStream.Write(headerBuffer);
+#else
+            sourceStream.Write(headerBuffer, 0, headerBuffer.Length);
+#endif
             sourceStream.Write(blockBuffer, 0, writtenLen);
         }
 
@@ -76,7 +80,11 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
 
             // Try load the buffer and check for the Crc
             dataPos = 0;
+#if NET
             dataAvailable = sourceStream.ReadAtLeast(blockBuffer, (int)blockHeader.Size);
+#else
+            dataAvailable = sourceStream.Read(blockBuffer, 0, (int)blockHeader.Size);
+#endif
             uint crcHash = Crc32.HashToUInt32(blockBuffer.AsSpan(0, dataAvailable));
 
             // Check the Crc
@@ -175,9 +183,13 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
         }
 
         public override int Read(byte[] buffer, int offset, int count) => ReadBytes(buffer, offset, count);
+#if NET
         public override int Read(Span<byte> buffer) => ReadBytes(buffer);
+#endif
         public override void Write(byte[] buffer, int offset, int count) => WriteBytes(buffer, offset, count);
+#if NET
         public override void Write(ReadOnlySpan<byte> buffer) => WriteBytes(buffer);
+#endif
 
         public override bool CanRead
         {
@@ -220,10 +232,12 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             }
         }
 
+#if NET
         public override async ValueTask DisposeAsync()
         {
             await base.DisposeAsync();
             if (!leaveOpen) await sourceStream.DisposeAsync();
         }
+#endif
     }
 }
