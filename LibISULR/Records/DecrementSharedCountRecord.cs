@@ -3,7 +3,7 @@ using System;
 
 namespace LibISULR.Records
 {
-    public class DecrementSharedCountRecord : BaseRecord<DecrementSharedCountFlags>
+    public class DecrementSharedCountRecord : BasePathRecord<DecrementSharedCountFlags>
     {
         public DecrementSharedCountRecord(int extra, byte[] data)
           : base(extra)
@@ -16,7 +16,7 @@ namespace LibISULR.Records
             throw new NotImplementedException();
         }
 
-        public string Path { get; }
+        public override string Path { get; }
 
         public override RecordType Type
         {

@@ -5,7 +5,7 @@ using System.Text;
 
 namespace LibISULR.Records
 {
-    public class DeleteDirOrFilesRecord : BaseRecord<DeleteDirOrFilesFlags>
+    public class DeleteDirOrFilesRecord : BasePathListRecord<DeleteDirOrFilesFlags>
     {
         public DeleteDirOrFilesRecord(int flags, byte[] data)
           : base(flags)
@@ -20,7 +20,7 @@ namespace LibISULR.Records
             return offset;
         }
 
-        public List<string> Paths { get; }
+        public override List<string> Paths { get; }
 
         public override string Description
         {

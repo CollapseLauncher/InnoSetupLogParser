@@ -4,9 +4,9 @@ using System.Text;
 
 namespace LibISULR.Records
 {
-    public class RunRecord : BaseRecord<RunFlags>
+    public class RunRecord : BasePathRecord<RunFlags>
     {
-        private string filename;
+        private string path;
         private string args;
         private string workingDir;
         private string runOnceId;
@@ -16,7 +16,7 @@ namespace LibISULR.Records
           : base(flags)
         {
             BufferTools spliiter = new BufferTools(data);
-            filename = spliiter.ReadString();
+            path = spliiter.ReadString();
             args = spliiter.ReadString();
             workingDir = spliiter.ReadString();
             runOnceId = spliiter.ReadString();
@@ -26,7 +26,7 @@ namespace LibISULR.Records
         public override int UpdateContent(Span<byte> buffer)
         {
             BufferTools stringWriter = new BufferTools(buffer);
-            int offset = stringWriter.WriteString(buffer, Encoding.Unicode, filename);
+            int offset = stringWriter.WriteString(buffer, Encoding.Unicode, path);
             offset += stringWriter.WriteString(buffer.Slice(offset), Encoding.Unicode, args);
             offset += stringWriter.WriteString(buffer.Slice(offset), Encoding.Unicode, workingDir);
             offset += stringWriter.WriteString(buffer.Slice(offset), Encoding.Unicode, runOnceId);
@@ -42,12 +42,12 @@ namespace LibISULR.Records
 
         public override string Description
         {
-            get { return $"File: \"{filename}\" Args: \"{args}\"; At \"{workingDir}\"; Flags: {Flags}"; }
+            get { return $"File: \"{path}\" Args: \"{args}\"; At \"{workingDir}\"; Flags: {Flags}"; }
         }
 
-        public string Filename
+        public override string Path
         {
-            get { return filename; }
+            get { return path; }
         }
 
         public string Args

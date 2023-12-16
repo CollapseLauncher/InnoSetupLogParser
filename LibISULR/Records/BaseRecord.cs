@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace LibISULR.Records
 {
@@ -20,6 +21,24 @@ namespace LibISULR.Records
         {
             return $"Type: {Type}. Desc: {Description}";
         }
+    }
+
+    public abstract class BasePathListRecord<TFlags> : BaseRecord<TFlags>
+        where TFlags : Enum
+    {
+        protected BasePathListRecord(int flags)
+            : base(flags) { }
+
+        public abstract List<string> Paths { get; }
+    }
+
+    public abstract class BasePathRecord<TFlags> : BaseRecord<TFlags>
+        where TFlags : Enum
+    {
+        protected BasePathRecord(int flags)
+            : base(flags) { }
+
+        public abstract string Path { get; }
     }
 
     public abstract class BaseRecord<TFlags> : BaseRecord
