@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Hashing;
 using System.Runtime.InteropServices;
@@ -300,7 +301,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
 #endif
 
                 // Deserialize the struct
-                if (!TryDeserializeStruct<TUninstallLogHeader>(structBuffer, ref i, sizeOf, out header))
+                if (!TryDeserializeStruct(structBuffer, ref i, sizeOf, out header))
                     throw new InvalidDataException("Header struct is invalid!");
 
                 // Try calculate the Crc32 hash of the header and throw if not match
@@ -315,7 +316,10 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             }
         }
 
-        internal static void ReadTStructure<T>(Stream stream, out T header)
+        internal static void ReadTStructure<[DynamicallyAccessedMembers(
+              DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.NonPublicConstructors
+            )]T>(Stream stream, out T header)
             where T : struct
         {
             int i = 0; // Dummy
@@ -333,7 +337,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
 #endif
 
                 // Deserialize the struct
-                if (!TryDeserializeStruct<T>(structBuffer, ref i, sizeOf, out header))
+                if (!TryDeserializeStruct(structBuffer, ref i, sizeOf, out header))
                     throw new InvalidDataException("Header struct is invalid!");
             }
             finally
@@ -343,7 +347,10 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             }
         }
 
-        internal static bool TryDeserializeStruct<T>(byte[] data, ref int pos, int TSize, out T output)
+        internal static bool TryDeserializeStruct<[DynamicallyAccessedMembers(
+              DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.NonPublicConstructors
+            )]T>(byte[] data, ref int pos, int TSize, out T? output)
         {
             output = default;
             if (data.Length < TSize || data.Length - TSize < pos) return false;
@@ -351,9 +358,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             IntPtr bufferPtr = Marshal.AllocHGlobal(TSize);
             Marshal.Copy(data, pos, bufferPtr, TSize);
 
-#pragma warning disable IL2091 // Target generic argument does not satisfy 'DynamicallyAccessedMembersAttribute' in target method or type. The generic parameter of the source method or type does not have matching annotations.
             output = Marshal.PtrToStructure<T>(bufferPtr);
-#pragma warning restore IL2091 // Target generic argument does not satisfy 'DynamicallyAccessedMembersAttribute' in target method or type. The generic parameter of the source method or type does not have matching annotations.
             Marshal.FreeHGlobal(bufferPtr);
             pos += TSize;
             return true;
