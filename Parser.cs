@@ -31,10 +31,10 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
 
         public bool IsLog64bit
         {
-            get => ReadStringFromByte(ID).Equals(InnoUninstLog.x64IdSignature);
+            get => ReadStringFromByte(ID).Equals(InnoUninstallLog.x64IdSignature);
             set
             {
-                string signatureToWrite = value ? InnoUninstLog.x64IdSignature : InnoUninstLog.x86IdSignature;
+                string signatureToWrite = value ? InnoUninstallLog.x64IdSignature : InnoUninstallLog.x86IdSignature;
                 WriteStringToByte(ref signatureToWrite, ID);
             }
         }
@@ -98,24 +98,24 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
     [StructLayout(LayoutKind.Sequential, Size = 0xA, Pack = 1)]
     public struct TUninstallFileRec
     {
-        public RecordType TUninstallRecTyp;
+        public RecordType TUninstallRecType;
         public int ExtraData;
         public uint DataSize;
     }
 
-    public class InnoUninstLog : IDisposable
+    public class InnoUninstallLog : IDisposable
     {
-        internal const string x86IdSignature = "Inno Setup Uninstall Log (b)";
-        internal const string x64IdSignature = "Inno Setup Uninstall Log (b) 64-bit";
-        public TUninstallLogHeader Header;
-        public List<BaseRecord> Records;
+        internal const string              x86IdSignature = "Inno Setup Uninstall Log (b)";
+        internal const string              x64IdSignature = "Inno Setup Uninstall Log (b) 64-bit";
+        public         TUninstallLogHeader Header;
+        public         List<BaseRecord>?   Records;
 
         public void Dispose()
         {
-            Records.Clear();
+            Records?.Clear();
         }
 
-        public static InnoUninstLog Load(string path, bool skipCrcCheck = false)
+        public static InnoUninstallLog Load(string path, bool skipCrcCheck = false)
         {
             // Load the file as stream
             using (FileStream stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
@@ -133,7 +133,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             }
         }
 
-        public static InnoUninstLog Load(Stream stream, bool skipCrcCheck = false)
+        public static InnoUninstallLog Load(Stream stream, bool skipCrcCheck = false)
         {
             // SANITY CHECK: Check the stream if it's readable
             if (!stream.CanRead) throw new ArgumentException("Stream must be readable!", "stream");
@@ -142,7 +142,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             ReadTUninstallLogHeader(stream, skipCrcCheck, out TUninstallLogHeader headerStruct);
 
             // Initialize the result class
-            InnoUninstLog result = new InnoUninstLog
+            InnoUninstallLog result = new InnoUninstallLog
             {
                 Header = headerStruct,
                 Records = new List<BaseRecord>()
@@ -162,8 +162,8 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                 crcStream.Read(buffer, 0, buffer.Length);
 #endif
 
-                // Try create the record and add it into the record list
-                result.Records.Add(RecordFactory.CreateRecord(uninstallFileRec.TUninstallRecTyp, uninstallFileRec.ExtraData, buffer));
+                // Try to create the record and add it into the record list
+                result.Records.Add(RecordFactory.CreateRecord(uninstallFileRec.TUninstallRecType, uninstallFileRec.ExtraData, buffer));
                 if (++start < headerStruct.RecordsCount) goto ReadHeaderRecords; // Do loop if the record still remains
 
                 // Return the list
@@ -204,30 +204,32 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                     // Note: The size should at least 10 bytes expected
                     int headerSizeOf = Marshal.SizeOf<TUninstallFileRec>();
                     // Iterate the records
-                    foreach (BaseRecord record in Records)
-                    {
-                        // Set the offset of the buffer and update the content into the write buffer
-                        int offset = 0;
-                        // Move and start buffer forward (based on headerSizeOf) to reserve space for TUninstallFileRec
-                        uint dataLen = (uint)record.UpdateContent(writeBuffer.AsSpan(headerSizeOf));
-
-                        // Initialize the record header (TUninstallFileRec) and try serialize it into buffer
-                        TUninstallFileRec dataRec = new TUninstallFileRec
+                    if (Records != null)
+                        foreach (BaseRecord record in Records)
                         {
-                            DataSize = dataLen,
-                            ExtraData = record.FlagsNum,
-                            TUninstallRecTyp = record.Type
-                        };
-                        _ = TrySerializeStruct(dataRec, ref offset, headerSizeOf, writeBuffer);
+                            // Set the offset of the buffer and update the content into the write buffer
+                            int offset = 0;
+                            // Move and start buffer forward (based on headerSizeOf) to reserve space for TUninstallFileRec
+                            uint dataLen = (uint)record.UpdateContent(writeBuffer.AsSpan(headerSizeOf));
 
-                        // Write the buffer with the size of headerSizeOf and dataLen
-#if NET
-                        crcStream.Write(writeBuffer.AsSpan(0, headerSizeOf + (int)dataLen));
-#else
+                            // Initialize the record header (TUninstallFileRec) and try to serialize it into buffer
+                            TUninstallFileRec dataRec = new TUninstallFileRec
+                            {
+                                DataSize          = dataLen,
+                                ExtraData         = record.FlagsNum,
+                                TUninstallRecType = record.Type
+                            };
+                            _ = TrySerializeStruct(dataRec, ref offset, headerSizeOf, writeBuffer);
+
+                            // Write the buffer with the size of headerSizeOf and dataLen
+                        #if NET
+                            crcStream.Write(writeBuffer.AsSpan(0, headerSizeOf + (int)dataLen));
+                        #else
                         crcStream.Write(writeBuffer, 0, headerSizeOf + (int)dataLen);
-#endif
-                    }
-                    // Finalize the crc block inside of CrcBridgeStream
+                        #endif
+                        }
+
+                    // Finalize the crc block inside CrcBridgeStream
                     crcStream.FinalizeBlock();
                 }
 
@@ -239,7 +241,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                     WriteTUninstallLogHeader(stream, (int)stream.Length, this.Records, Header);
                 }
             }
-            catch { throw; }
+            // Catch all exception
             finally
             {
                 // Return the write buffer to ArrayPool
@@ -247,8 +249,9 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             }
         }
 
-        private static void WriteTUninstallLogHeader(Stream stream, int lengthOfStream, List<BaseRecord> records, TUninstallLogHeader header)
+        private static void WriteTUninstallLogHeader(Stream stream, int lengthOfStream, List<BaseRecord>? records, TUninstallLogHeader header)
         {
+            if (records == null) return;
             int i = 0; // Dummy
             int sizeOf = Marshal.SizeOf<TUninstallLogHeader>(); // Get the size of the struct
 
@@ -276,7 +279,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                 // Write the buffer into stream
                 stream.Write(structBuffer, 0, sizeOf);
             }
-            catch { throw; }
+            // Catch all exception
             finally
             {
                 // Return the pool buffer
@@ -304,7 +307,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                 if (!TryDeserializeStruct(structBuffer, ref i, sizeOf, out header))
                     throw new InvalidDataException("Header struct is invalid!");
 
-                // Try calculate the Crc32 hash of the header and throw if not match
+                // Try to calculate the Crc32 hash of the header and throw if not match
                 uint crc32Header = Crc32.HashToUInt32(structBuffer.AsSpan(0, sizeOf - 4));
                 if (!skipCrcCheck && crc32Header != header.Crc)
                     throw new DataException($"Header Crc32 isn't match! Getting {crc32Header} while expecting {header.Crc}");
@@ -369,7 +372,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             if (pos + TSize > output.Length) return false;
 
             IntPtr dataPtr = Marshal.AllocHGlobal(TSize);
-            Marshal.StructureToPtr(input, dataPtr, true);
+            Marshal.StructureToPtr(input!, dataPtr, true);
             Marshal.Copy(dataPtr, output, pos, TSize);
             Marshal.FreeHGlobal(dataPtr);
             pos += TSize;
