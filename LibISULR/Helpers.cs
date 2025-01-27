@@ -3,16 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
-
+// ReSharper disable InlineOutVariableDeclaration
+// ReSharper disable CheckNamespace
 // ReSharper disable RedundantUnsafeContext
+// ReSharper disable IdentifierTypo
+// ReSharper disable InvertIf
 
 namespace LibISULR;
 
 public ref struct BufferTools
 {
-    private        ReadOnlySpan<byte> data;
-    private unsafe byte*              _dataPtr;
-    private        int                index;
+    private                 ReadOnlySpan<byte> _data;
+    private readonly unsafe byte*              _dataPtr;
+    private                 int                _index;
 
     public unsafe BufferTools(byte[] data)
         : this(data, 0)
@@ -26,18 +29,18 @@ public ref struct BufferTools
 
     public unsafe BufferTools(Span<byte> data)
     {
-        this.data = data;
-        fixed (byte* dataPtr = this.data)
+        _data = data;
+        fixed (byte* dataPtr = _data)
         {
             _dataPtr = dataPtr;
         }
 
-        index = 0;
+        _index = 0;
     }
 
     private int ReadLength(out bool eof)
     {
-        var type = data[index++];
+        byte type = _data[_index++];
         eof = false;
 
         // If the type is 0xFF (end), then set eof = true and return 0
@@ -46,11 +49,12 @@ public ref struct BufferTools
             eof = true;
             return 0;
         }
+
     #if NET
         return type switch
                {
-                   0xFD => ReadUShort(data, ref index), // UTF-8 string length Type
-                   0xFE => ReadInt(data, ref index), // Unicode/UTF-16 string length Type
+                   0xFD => ReadUShort(_data, ref _index), // UTF-8 string length Type
+                   0xFE => ReadInt(_data, ref _index), // Unicode/UTF-16 string length Type
                    _ => type // Type as the length
                };
     #else
@@ -69,52 +73,51 @@ public ref struct BufferTools
     public unsafe string? ReadString()
     {
         bool eof;
-        var  length = ReadLength(out eof);
+        int  length = ReadLength(out eof);
         if (eof)
             return null;
 
         string result;
 
-        if (length < 0)
+        switch (length)
         {
-            length = -length;
-            result = Encoding.Unicode.GetString(_dataPtr + index, length);
-        }
-        else if (length == 0)
-        {
-            return string.Empty;
-        }
-        else
-        {
-            result = Encoding.Default.GetString(_dataPtr + index, length);
+            case < 0:
+                length = -length;
+                result = Encoding.Unicode.GetString(_dataPtr + _index, length);
+                break;
+            case 0:
+                return string.Empty;
+            default:
+                result = Encoding.Default.GetString(_dataPtr + _index, length);
+                break;
         }
 
-        index += length;
+        _index += length;
         return result;
     }
 
     public unsafe int WriteString(Span<byte> buffer, Encoding encoding, string? inputString)
     {
-        var isUTF16 = encoding.GetType() == Encoding.Unicode.GetType();
-        var strType = (byte)(isUTF16 ? 0xFE : 0xFD);
+        bool isUtf16 = encoding.GetType() == Encoding.Unicode.GetType();
+        byte strType = (byte)(isUtf16 ? 0xFE : 0xFD);
     #if NET
         MemoryMarshal.Write(buffer, strType);
     #else
             MemoryMarshal.Write(buffer, ref strType);
     #endif
 
-        var offset = 1;
+        int offset = 1;
         if (inputString == null) return 0;
-        var strByteLen = inputString.Length * (isUTF16 ? 2 : 1);
+        int strByteLen = inputString.Length * (isUtf16 ? 2 : 1);
 
     #if NET
-        if (isUTF16)
-            MemoryMarshal.Write(buffer.Slice(offset), -strByteLen);
+        if (isUtf16)
+            MemoryMarshal.Write(buffer[offset..], -strByteLen);
         else
-            MemoryMarshal.Write(buffer.Slice(offset), -(ushort)strByteLen);
+            MemoryMarshal.Write(buffer[offset..], -(ushort)strByteLen);
 
-        offset += isUTF16 ? 4 : 2;
-        offset += encoding.GetBytes(inputString, buffer.Slice(offset));
+        offset += isUtf16 ? 4 : 2;
+        offset += encoding.GetBytes(inputString, buffer[offset..]);
     #else
             int negativeStrByteLen = -strByteLen;
             if (isUTF16)
@@ -134,20 +137,20 @@ public ref struct BufferTools
 
     public int WriteDateTime(Span<byte> buffer, DateTime inputDateTime)
     {
-        var isDateEmpty = DateTime.MinValue == inputDateTime;
-        var lenType     = (byte)(isDateEmpty ? 0xFF : 0xFE);
+        bool isDateEmpty = DateTime.MinValue == inputDateTime;
+        byte lenType     = (byte)(isDateEmpty ? 0xFF : 0xFE);
     #if NET
         MemoryMarshal.Write(buffer, lenType);
     #else
             MemoryMarshal.Write(buffer, ref lenType);
     #endif
 
-        var offset = 1;
+        int offset = 1;
         if (isDateEmpty) return offset;
 
         Span<ushort> dateTimeInUShorts = new ushort[8];
     #if NET
-        MemoryMarshal.Write(buffer.Slice(offset), -(dateTimeInUShorts.Length * 2));
+        MemoryMarshal.Write(buffer[offset..], -(dateTimeInUShorts.Length * 2));
     #else
             int dateTimeLenNegative = -(dateTimeInUShorts.Length * 2);
             MemoryMarshal.Write(buffer.Slice(offset), ref dateTimeLenNegative);
@@ -163,8 +166,8 @@ public ref struct BufferTools
         dateTimeInUShorts[6] = (ushort)inputDateTime.Second;
         dateTimeInUShorts[7] = (ushort)inputDateTime.Millisecond;
 
-        var dateInTimeBytes = MemoryMarshal.AsBytes(dateTimeInUShorts);
-        dateInTimeBytes.CopyTo(buffer.Slice(offset));
+        Span<byte> dateInTimeBytes = MemoryMarshal.AsBytes(dateTimeInUShorts);
+        dateInTimeBytes.CopyTo(buffer[offset..]);
         offset += dateTimeInUShorts.Length * 2;
 
         return offset;
@@ -173,7 +176,7 @@ public ref struct BufferTools
     public DateTime ReadDateTime()
     {
         bool eof;
-        var  length = ReadLength(out eof);
+        int  length = ReadLength(out eof);
         if (eof)
             return DateTime.MinValue;
         if (length < 0)
@@ -183,16 +186,16 @@ public ref struct BufferTools
 
         if (length >= 16)
         {
-            var i = index;
+            int i = _index;
 
-            var year  = ReadUShort(data, ref i);
-            var month = ReadUShort(data, ref i);
+            ushort year  = ReadUShort(_data, ref i);
+            ushort month = ReadUShort(_data, ref i);
             i += 2; //ushort dow = ReadUShort(data,ref i);
-            var day    = ReadUShort(data, ref i);
-            var hour   = ReadUShort(data, ref i);
-            var minute = ReadUShort(data, ref i);
-            var second = ReadUShort(data, ref i);
-            var ms     = ReadUShort(data, ref i);
+            ushort day    = ReadUShort(_data, ref i);
+            ushort hour   = ReadUShort(_data, ref i);
+            ushort minute = ReadUShort(_data, ref i);
+            ushort second = ReadUShort(_data, ref i);
+            ushort ms     = ReadUShort(_data, ref i);
 
             result = new DateTime(year, month, day, hour, minute, second, ms, DateTimeKind.Local);
         }
@@ -201,18 +204,18 @@ public ref struct BufferTools
             result = DateTime.MinValue;
         }
 
-        index += length;
+        _index += length;
         return result;
     }
 
     public int WriteBytes(Span<byte> buffer, ReadOnlySpan<byte> source)
     {
-        byte lenType = 0xFE;
+        const byte lenType = 0xFE;
     #if NET
         MemoryMarshal.Write(buffer, lenType);
 
-        var offset = 1;
-        MemoryMarshal.Write(buffer.Slice(offset), -source.Length);
+        int offset = 1;
+        MemoryMarshal.Write(buffer[offset..], -source.Length);
     #else
             MemoryMarshal.Write(buffer, ref lenType);
 
@@ -223,7 +226,7 @@ public ref struct BufferTools
         offset += 4;
         if (source.Length == 0) return offset;
 
-        source.CopyTo(buffer.Slice(offset));
+        source.CopyTo(buffer[offset..]);
         offset += source.Length;
         return offset;
     }
@@ -231,33 +234,33 @@ public ref struct BufferTools
     public unsafe byte[]? ReadBytes()
     {
         bool eof;
-        var  length = ReadLength(out eof);
+        int  length = ReadLength(out eof);
         if (eof)
             return null;
         if (length < 0)
             length = -length;
 
-        if (length == 0) return Array.Empty<byte>();
+        if (length == 0) return [];
 
-        var result = new byte[length];
+        byte[] result = new byte[length];
         fixed (byte* resultPtr = result)
         {
-            Buffer.MemoryCopy(_dataPtr + index, resultPtr, length, length);
+            Buffer.MemoryCopy(_dataPtr + _index, resultPtr, length, length);
         }
 
-        index += length;
+        _index += length;
 
         return result;
     }
 
-    private bool IsEnd => index >= data.Length;
+    private bool IsEnd => _index >= _data.Length;
 
     public List<string?> GetStringList()
     {
-        var returnList = new List<string?>();
+        List<string?> returnList = [];
         while (!IsEnd)
         {
-            var str = ReadString();
+            string? str = ReadString();
             if (str != null)
                 returnList.Add(str);
         }
@@ -267,15 +270,15 @@ public ref struct BufferTools
 
     public unsafe string[] GetStringArray()
     {
-        var type = data[index++];
+        byte type = _data[_index++];
         if (type == 0xFF) // If the type is 0xFF (end), then set eof = true and return 0
-            return Array.Empty<string>();
+            return [];
 
     #if NET
-        var byteLength = type switch
+        int byteLength = type switch
                          {
-                             0xFD => ReadUShort(data, ref index), // UTF-8 string length Type
-                             0xFE => ReadInt(data, ref index), // Unicode/UTF-16 string length Type
+                             0xFD => ReadUShort(_data, ref _index), // UTF-8 string length Type
+                             0xFE => ReadInt(_data, ref _index), // Unicode/UTF-16 string length Type
                              _ => type // Type as the length
                          };
     #else
@@ -291,26 +294,26 @@ public ref struct BufferTools
             }
     #endif
 
-        if (byteLength == 0) return Array.Empty<string>();
+        if (byteLength == 0) return [];
 
-        var isUTF16 = type == 0xFE;
+        bool isUtf16 = type == 0xFE;
 
-        var offset = 0;
-        var count  = MemoryMarshal.Read<int>(data.Slice(index)) * (isUTF16 ? 2 : 1); // WTF?
-        index += 4;
-        var returnArray = new string[count];
+        int offset = 0;
+        int count  = MemoryMarshal.Read<int>(_data[_index..]) * (isUtf16 ? 2 : 1); // WTF?
+        _index += 4;
+        string[] returnArray = new string[count];
 
         GetStringArray:
-        var stringByteLength = MemoryMarshal.Read<int>(data.Slice(index)) * (isUTF16 ? 2 : 1);
-        index += 4;
+        int stringByteLength = MemoryMarshal.Read<int>(_data[_index..]) * (isUtf16 ? 2 : 1);
+        _index += 4;
 
-        var stringResult = isUTF16
-            ? Encoding.Unicode.GetString(_dataPtr + index, stringByteLength)
-            : Encoding.UTF8.GetString(_dataPtr + index, stringByteLength);
-        index += stringByteLength;
+        string stringResult = isUtf16
+            ? Encoding.Unicode.GetString(_dataPtr + _index, stringByteLength)
+            : Encoding.UTF8.GetString(_dataPtr + _index, stringByteLength);
+        _index += stringByteLength;
 
         returnArray[offset++] = stringResult;
-        if (offset < count && *(_dataPtr + index) != 0xFF) goto GetStringArray;
+        if (offset < count && *(_dataPtr + _index) != 0xFF) goto GetStringArray;
 
         return returnArray;
     }
@@ -320,7 +323,7 @@ public ref struct BufferTools
         int offset = 0, i = 0;
 
         WriteStringList:
-        offset += WriteString(buffer.Slice(offset), encoding, inputString[i++]);
+        offset += WriteString(buffer[offset..], encoding, inputString[i++]);
         if (i < inputString.Count) goto WriteStringList;
 
         buffer[offset++] = 0xFF;
@@ -333,21 +336,21 @@ public ref struct BufferTools
         public unsafe int WriteStringArray(Span<byte> buffer, Encoding encoding, string[] inputString)
 #endif
     {
-        var isUTF16 = encoding.GetType() == Encoding.Unicode.GetType();
-        var strType = (byte)(isUTF16 ? 0xFE : 0xFD);
+        bool isUtf16 = encoding.GetType() == Encoding.Unicode.GetType();
+        byte strType = (byte)(isUtf16 ? 0xFE : 0xFD);
     #if NET
         MemoryMarshal.Write(buffer, strType);
     #else
             MemoryMarshal.Write(buffer, ref strType);
     #endif
-        var offset = 1;
+        int offset = 1;
 
-        var count                      = inputString.Length / (isUTF16 ? 2 : 1);
-        var totalOfStringSize          = inputString.Sum(x => x.Length * (isUTF16 ? 2 : 1));
-        var totalOfStringLengthSize    = inputString.Length * 4;
-        var calculatedStringBufferSize = 4 + totalOfStringLengthSize + totalOfStringSize;
+        int count                      = inputString.Length / (isUtf16 ? 2 : 1);
+        int totalOfStringSize          = inputString.Sum(x => x.Length * (isUtf16 ? 2 : 1));
+        int totalOfStringLengthSize    = inputString.Length * 4;
+        int calculatedStringBufferSize = 4 + totalOfStringLengthSize + totalOfStringSize;
     #if NET
-        MemoryMarshal.Write(buffer.Slice(offset), count == 0 ? 0 : -calculatedStringBufferSize);
+        MemoryMarshal.Write(buffer[offset..], count == 0 ? 0 : -calculatedStringBufferSize);
     #else
             int negativeStringBufferSize = count == 0 ? 0 : -calculatedStringBufferSize;
             MemoryMarshal.Write(buffer.Slice(offset), ref negativeStringBufferSize);
@@ -356,21 +359,21 @@ public ref struct BufferTools
 
         if (count == 0) goto WriteStringArrayEOF;
     #if NET
-        MemoryMarshal.Write(buffer.Slice(offset), count);
+        MemoryMarshal.Write(buffer[offset..], count);
     #else
             MemoryMarshal.Write(buffer.Slice(offset), ref count);
     #endif
         offset += 4;
 
-        var stringArrayIndex = 0;
+        int stringArrayIndex = 0;
         WriteStringArray:
     #if NET
-        if (isUTF16)
-            MemoryMarshal.Write(buffer.Slice(offset), inputString[stringArrayIndex].Length);
+        if (isUtf16)
+            MemoryMarshal.Write(buffer[offset..], inputString[stringArrayIndex].Length);
         else
-            MemoryMarshal.Write(buffer.Slice(offset), (ushort)inputString[stringArrayIndex].Length);
-        offset += isUTF16 ? 4 : 2;
-        offset += encoding.GetBytes(inputString[stringArrayIndex++], buffer.Slice(offset));
+            MemoryMarshal.Write(buffer[offset..], (ushort)inputString[stringArrayIndex].Length);
+        offset += isUtf16 ? 4 : 2;
+        offset += encoding.GetBytes(inputString[stringArrayIndex++], buffer[offset..]);
         if (stringArrayIndex < inputString.Length) goto WriteStringArray;
     #else
             if (isUTF16)
@@ -398,16 +401,16 @@ public ref struct BufferTools
         return offset;
     }
 
-    private ushort ReadUShort(ReadOnlySpan<byte> input, ref int i)
+    private static ushort ReadUShort(ReadOnlySpan<byte> input, ref int i)
     {
-        var result = MemoryMarshal.Read<ushort>(input.Slice(i));
+        ushort result = MemoryMarshal.Read<ushort>(input[i..]);
         i += 2;
         return result;
     }
 
-    private int ReadInt(ReadOnlySpan<byte> input, ref int i)
+    private static int ReadInt(ReadOnlySpan<byte> input, ref int i)
     {
-        var result = MemoryMarshal.Read<int>(input.Slice(i));
+        int result = MemoryMarshal.Read<int>(input[i..]);
         i += 4;
         return result;
     }

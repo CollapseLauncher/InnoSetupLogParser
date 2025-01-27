@@ -12,7 +12,7 @@ public class EndInstallRecord : BaseRecord
 
     public override int UpdateContent(Span<byte> buffer)
     {
-        var offset = new BufferTools(buffer).WriteDateTime(buffer, Time);
+        int offset = new BufferTools(buffer).WriteDateTime(buffer, Time);
         buffer[offset++] = 0xFF;
         return offset;
     }

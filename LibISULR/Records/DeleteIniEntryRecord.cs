@@ -2,24 +2,22 @@
 
 public class DeleteIniEntryRecord : DeleteIniSectionRecord
 {
-    private string entry;
-
     public DeleteIniEntryRecord(int flags, byte[] data)
         : base(flags, data)
     {
-        entry = "";
+        Entry = "";
     }
 
     protected override void Init(ref BufferTools splitter)
     {
         base.Init(ref splitter);
-        entry = splitter.ReadString()!;
+        Entry = splitter.ReadString()!;
     }
 
-    public string Entry => entry;
+    public string Entry { get; private set; }
 
     public override RecordType Type => RecordType.IniDeleteEntry;
 
     public override string Description =>
-        $"File: \"{Filename}\"; Section: \"{Section}\"; Entry: {entry}; Flags: {Flags}";
+        $"File: \"{Filename}\"; Section: \"{Section}\"; Entry: {Entry}; Flags: {Flags}";
 }

@@ -2,21 +2,19 @@
 
 public class RegistryValueRecord : RegistryKeyRecord
 {
-    private string value;
-
     public RegistryValueRecord(RecordType type, int flags, byte[] data)
         : base(type, flags, data)
     {
-        value = "";
+        Value = "";
     }
 
     protected override void Init(ref BufferTools splitter)
     {
         base.Init(ref splitter);
-        value = splitter.ReadString()!;
+        Value = splitter.ReadString()!;
     }
 
-    public override string Description => $"View: {View}; Hive: {Hive}; Path: {Path}; Value: {value}";
+    public override string Description => $"View: {View}; Hive: {Hive}; Path: {Path}; Value: {Value}";
 
-    public string Value => value;
+    public string Value { get; private set; }
 }

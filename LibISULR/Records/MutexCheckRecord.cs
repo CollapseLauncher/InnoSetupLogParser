@@ -13,8 +13,8 @@ public class MutexCheckRecord : BaseRecord
 
     public override int UpdateContent(Span<byte> buffer)
     {
-        var writer = new BufferTools(buffer);
-        var offset = writer.WriteString(buffer, Encoding.Unicode, MutexName);
+        BufferTools writer = new(buffer);
+        int         offset = writer.WriteString(buffer, Encoding.Unicode, MutexName);
         buffer[offset++] = 0xFF;
         return offset;
     }

@@ -8,7 +8,7 @@ public class StartInstallRecord : BaseRecord
     public StartInstallRecord(int flags, byte[] data)
         : base(flags)
     {
-        var splitter = new BufferTools(data);
+        BufferTools splitter = new(data);
         ComputerName   = splitter.ReadString();
         UserName       = splitter.ReadString();
         ApplicationDir = splitter.ReadString();
@@ -17,12 +17,12 @@ public class StartInstallRecord : BaseRecord
 
     public override int UpdateContent(Span<byte> buffer)
     {
-        var stringWriter = new BufferTools(buffer);
-        var offset       = stringWriter.WriteString(buffer, Encoding.Unicode, ComputerName);
-        offset                  += stringWriter.WriteString(buffer.Slice(offset), Encoding.Unicode, UserName);
-        offset                  += stringWriter.WriteString(buffer.Slice(offset), Encoding.Unicode, ApplicationDir);
-        offset                  += stringWriter.WriteDateTime(buffer.Slice(offset), Time);
-        buffer.Slice(offset)[0] =  0xFF;
+        BufferTools stringWriter = new(buffer);
+        int         offset       = stringWriter.WriteString(buffer, Encoding.Unicode, ComputerName);
+        offset              += stringWriter.WriteString(buffer[offset..], Encoding.Unicode, UserName);
+        offset              += stringWriter.WriteString(buffer[offset..], Encoding.Unicode, ApplicationDir);
+        offset              += stringWriter.WriteDateTime(buffer[offset..], Time);
+        buffer[offset..][0] =  0xFF;
         return offset + 1;
     }
 

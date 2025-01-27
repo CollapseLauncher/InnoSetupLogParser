@@ -13,7 +13,7 @@ using System.Text;
 namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
 {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Size = 0x1C0)]
-    public struct TUninstallLogHeader
+    public struct UninstallLogHeader
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x40)]
         private byte[] ID;
@@ -29,12 +29,12 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
         public byte[] ReservedHeaderBytes;
         public uint Crc;
 
-        public bool IsLog64bit
+        public bool IsLog64Bit
         {
-            get => ReadStringFromByte(ID).Equals(InnoUninstallLog.x64IdSignature);
+            get => ReadStringFromByte(ID).Equals(InnoUninstallLog.X64IdSignature);
             set
             {
-                string signatureToWrite = value ? InnoUninstallLog.x64IdSignature : InnoUninstallLog.x86IdSignature;
+                string signatureToWrite = value ? InnoUninstallLog.X64IdSignature : InnoUninstallLog.X86IdSignature;
                 WriteStringToByte(ref signatureToWrite, ID);
             }
         }
@@ -90,13 +90,13 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
     }
 
     [StructLayout(LayoutKind.Sequential, Size = 0xC)]
-    public struct TUninstallCrcHeader
+    public struct UninstallCrcHeader
     {
         public uint Size, NotSize, Crc;
     }
 
     [StructLayout(LayoutKind.Sequential, Size = 0xA, Pack = 1)]
-    public struct TUninstallFileRec
+    public struct UninstallFileRec
     {
         public RecordType TUninstallRecType;
         public int ExtraData;
@@ -105,9 +105,9 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
 
     public class InnoUninstallLog : IDisposable
     {
-        internal const string              x86IdSignature = "Inno Setup Uninstall Log (b)";
-        internal const string              x64IdSignature = "Inno Setup Uninstall Log (b) 64-bit";
-        public         TUninstallLogHeader Header;
+        internal const string              X86IdSignature = "Inno Setup Uninstall Log (b)";
+        internal const string              X64IdSignature = "Inno Setup Uninstall Log (b) 64-bit";
+        public         UninstallLogHeader Header;
         public         List<BaseRecord>?   Records;
 
         public void Dispose()
@@ -139,22 +139,22 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             if (!stream.CanRead) throw new ArgumentException("Stream must be readable!", "stream");
 
             // Read header structures
-            ReadTUninstallLogHeader(stream, skipCrcCheck, out TUninstallLogHeader headerStruct);
+            ReadTUninstallLogHeader(stream, skipCrcCheck, out UninstallLogHeader headerStruct);
 
             // Initialize the result class
-            InnoUninstallLog result = new InnoUninstallLog
+            InnoUninstallLog result = new()
             {
                 Header = headerStruct,
-                Records = new List<BaseRecord>()
+                Records = []
             };
 
             // Assign the stream to the reader and leave it open
-            using (CrcBridgeStream crcStream = new CrcBridgeStream(stream, true, skipCrcCheck))
+            using (CrcBridgeStream crcStream = new(stream, true, skipCrcCheck))
             {
                 // Start reading records and its header
                 int start = 0;
             ReadHeaderRecords:
-                ReadTStructure(crcStream, out TUninstallFileRec uninstallFileRec); // Read the header and load it into the struct
+                ReadTStructure(crcStream, out UninstallFileRec uninstallFileRec); // Read the header and load it into the struct
                 byte[] buffer = new byte[uninstallFileRec.DataSize]; // Initialize the buffer for the data
 #if NET
                 crcStream.ReadExactly(buffer); // Then read the crc stream to the buffer
@@ -189,20 +189,20 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                 //     Seek the stream based on the struct size -> Write the records -> Back to the last stream position
                 //     -> Set the size based on Stream size -> Write the TUninstallLogHeader struct
                 if (!stream.CanSeek)
-                    WriteTUninstallLogHeader(stream, -1, this.Records, Header);
+                    WriteTUninstallLogHeader(stream, -1, Records, Header);
                 else
                 {
-                    int tHeadStructSize = Marshal.SizeOf<TUninstallLogHeader>();
+                    int tHeadStructSize = Marshal.SizeOf<UninstallLogHeader>();
                     lastStreamPosition = stream.Position;
                     stream.Seek(tHeadStructSize, SeekOrigin.Current);
                 }
 
                 // Initialize the CrcBridgeStream in write mode
-                using (CrcBridgeStream crcStream = new CrcBridgeStream(stream, true, false, true))
+                using (CrcBridgeStream crcStream = new(stream, true, false, true))
                 {
                     // Get the size of the record header (TUninstallLogHeader)
                     // Note: The size should at least 10 bytes expected
-                    int headerSizeOf = Marshal.SizeOf<TUninstallFileRec>();
+                    int headerSizeOf = Marshal.SizeOf<UninstallFileRec>();
                     // Iterate the records
                     if (Records != null)
                         foreach (BaseRecord record in Records)
@@ -213,7 +213,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                             uint dataLen = (uint)record.UpdateContent(writeBuffer.AsSpan(headerSizeOf));
 
                             // Initialize the record header (TUninstallFileRec) and try to serialize it into buffer
-                            TUninstallFileRec dataRec = new TUninstallFileRec
+                            UninstallFileRec dataRec = new()
                             {
                                 DataSize          = dataLen,
                                 ExtraData         = record.FlagsNum,
@@ -238,7 +238,7 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
                 if (stream.CanSeek)
                 {
                     stream.Seek(lastStreamPosition, SeekOrigin.Begin);
-                    WriteTUninstallLogHeader(stream, (int)stream.Length, this.Records, Header);
+                    WriteTUninstallLogHeader(stream, (int)stream.Length, Records, Header);
                 }
             }
             // Catch all exception
@@ -249,11 +249,11 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             }
         }
 
-        private static void WriteTUninstallLogHeader(Stream stream, int lengthOfStream, List<BaseRecord>? records, TUninstallLogHeader header)
+        private static void WriteTUninstallLogHeader(Stream stream, int lengthOfStream, List<BaseRecord>? records, UninstallLogHeader header)
         {
             if (records == null) return;
             int i = 0; // Dummy
-            int sizeOf = Marshal.SizeOf<TUninstallLogHeader>(); // Get the size of the struct
+            int sizeOf = Marshal.SizeOf<UninstallLogHeader>(); // Get the size of the struct
 
             // Allocate buffer from pool
             byte[] structBuffer = ArrayPool<byte>.Shared.Rent(sizeOf);
@@ -287,10 +287,10 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
             }
         }
 
-        private static void ReadTUninstallLogHeader(Stream stream, bool skipCrcCheck, out TUninstallLogHeader header)
+        private static void ReadTUninstallLogHeader(Stream stream, bool skipCrcCheck, out UninstallLogHeader header)
         {
             int i = 0; // Dummy
-            int sizeOf = Marshal.SizeOf<TUninstallLogHeader>(); // Get the size of the struct
+            int sizeOf = Marshal.SizeOf<UninstallLogHeader>(); // Get the size of the struct
 
             // Allocate buffer from pool
             byte[] structBuffer = ArrayPool<byte>.Shared.Rent(sizeOf);
@@ -353,29 +353,29 @@ namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
         internal static bool TryDeserializeStruct<[DynamicallyAccessedMembers(
               DynamicallyAccessedMemberTypes.PublicConstructors
             | DynamicallyAccessedMemberTypes.NonPublicConstructors
-            )]T>(byte[] data, ref int pos, int TSize, out T? output)
+            )]T>(byte[] data, ref int pos, int size, out T? output)
         {
             output = default;
-            if (data.Length < TSize || data.Length - TSize < pos) return false;
+            if (data.Length < size || data.Length - size < pos) return false;
 
-            IntPtr bufferPtr = Marshal.AllocHGlobal(TSize);
-            Marshal.Copy(data, pos, bufferPtr, TSize);
+            IntPtr bufferPtr = Marshal.AllocHGlobal(size);
+            Marshal.Copy(data, pos, bufferPtr, size);
 
             output = Marshal.PtrToStructure<T>(bufferPtr);
             Marshal.FreeHGlobal(bufferPtr);
-            pos += TSize;
+            pos += size;
             return true;
         }
 
-        internal static bool TrySerializeStruct<T>(T input, ref int pos, int TSize, byte[] output)
+        internal static bool TrySerializeStruct<T>(T input, ref int pos, int size, byte[] output)
         {
-            if (pos + TSize > output.Length) return false;
+            if (pos + size > output.Length) return false;
 
-            IntPtr dataPtr = Marshal.AllocHGlobal(TSize);
+            IntPtr dataPtr = Marshal.AllocHGlobal(size);
             Marshal.StructureToPtr(input!, dataPtr, true);
-            Marshal.Copy(dataPtr, output, pos, TSize);
+            Marshal.Copy(dataPtr, output, pos, size);
             Marshal.FreeHGlobal(dataPtr);
-            pos += TSize;
+            pos += size;
             return true;
         }
     }

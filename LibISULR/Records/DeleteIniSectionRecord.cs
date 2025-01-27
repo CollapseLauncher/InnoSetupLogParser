@@ -1,26 +1,26 @@
 ﻿using LibISULR.Flags;
 using System;
+// ReSharper disable CheckNamespace
+// ReSharper disable IdentifierTypo
+// ReSharper disable VirtualMemberCallInConstructor
 
 namespace LibISULR.Records;
 
 public class DeleteIniSectionRecord : BaseRecord<IniFlags>
 {
-    private string filename;
-    private string section;
-
     public DeleteIniSectionRecord(int flags, byte[] data)
         : base(flags)
     {
-        var splitter = new BufferTools(data);
+        BufferTools splitter = new(data);
         Init(ref splitter);
-        filename = "";
-        section  = "";
+        Filename = "";
+        Section  = "";
     }
 
     protected virtual void Init(ref BufferTools splitter)
     {
-        filename = splitter.ReadString()!;
-        section  = splitter.ReadString()!;
+        Filename = splitter.ReadString()!;
+        Section  = splitter.ReadString()!;
     }
 
     public override int UpdateContent(Span<byte> buffer)
@@ -28,11 +28,11 @@ public class DeleteIniSectionRecord : BaseRecord<IniFlags>
         throw new NotImplementedException();
     }
 
-    public string Filename => filename;
+    public string Filename { get; private set; }
 
-    public string Section => section;
+    public string Section { get; private set; }
 
     public override RecordType Type => RecordType.IniDeleteSection;
 
-    public override string Description => $"File: \"{filename}\"; Section: \"{section}\"; Flags: {Flags}";
+    public override string Description => $"File: \"{Filename}\"; Section: \"{Section}\"; Flags: {Flags}";
 }

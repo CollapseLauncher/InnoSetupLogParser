@@ -10,7 +10,7 @@ public class DeleteDirOrFilesRecord : BasePathListRecord<DeleteDirOrFilesFlags>
     public DeleteDirOrFilesRecord(DeleteDirOrFilesFlags flags = DeleteDirOrFilesFlags.DisableFsRedir)
         : base((int)flags)
     {
-        Paths = new List<string?>();
+        Paths = [];
     }
 
     public DeleteDirOrFilesRecord(int flags, byte[] data)
@@ -23,15 +23,15 @@ public class DeleteDirOrFilesRecord : BasePathListRecord<DeleteDirOrFilesFlags>
                                                 DeleteDirOrFilesFlags flags = DeleteDirOrFilesFlags.IsDir |
                                                                               DeleteDirOrFilesFlags.DisableFsRedir)
     {
-        var record = new DeleteDirOrFilesRecord(flags);
+        DeleteDirOrFilesRecord record = new(flags);
         record.Paths.Add(path);
         return record;
     }
 
     public override int UpdateContent(Span<byte> buffer)
     {
-        var writer = new BufferTools(buffer);
-        var offset = writer.WriteStringList(buffer, Encoding.Unicode, Paths);
+        BufferTools writer = new(buffer);
+        int         offset = writer.WriteStringList(buffer, Encoding.Unicode, Paths);
         return offset;
     }
 

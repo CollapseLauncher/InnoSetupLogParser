@@ -6,7 +6,7 @@ namespace LibISULR.Flags
   public enum UninstallLogFlags
   {
     AdminInstalled = 1 << 0,
-    DontCheckRecCRCs = 1 << 1,
+    DontCheckRecCrCs = 1 << 1,
     ModernStyle = 1 << 2,
     AlwaysRestart = 1 << 3,
     ChangesEnvironment = 1 << 4,

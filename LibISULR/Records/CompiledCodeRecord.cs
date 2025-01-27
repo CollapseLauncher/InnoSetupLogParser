@@ -8,7 +8,7 @@ public class CompiledCodeRecord : BaseRecord
     public CompiledCodeRecord(int flags, byte[] data)
         : base(flags)
     {
-        var splitter = new BufferTools(data);
+        BufferTools splitter = new(data);
         Code          = splitter.ReadBytes()!;
         LeadBytes     = splitter.ReadBytes()!;
         ExpandedApp   = splitter.ReadString();
@@ -20,14 +20,14 @@ public class CompiledCodeRecord : BaseRecord
 
     public override int UpdateContent(Span<byte> buffer)
     {
-        var writter = new BufferTools(buffer);
-        var offset  = writter.WriteBytes(buffer, Code);
-        offset += writter.WriteBytes(buffer.Slice(offset), LeadBytes);
-        offset += writter.WriteString(buffer.Slice(offset), Encoding.Unicode, ExpandedApp);
-        offset += writter.WriteString(buffer.Slice(offset), Encoding.Unicode, ExpandedGroup);
-        offset += writter.WriteString(buffer.Slice(offset), Encoding.Unicode, WizardGroup);
-        offset += writter.WriteString(buffer.Slice(offset), Encoding.Unicode, Language);
-        offset += writter.WriteStringArray(buffer.Slice(offset), Encoding.Unicode, LanguageData);
+        BufferTools writter = new(buffer);
+        int         offset  = writter.WriteBytes(buffer, Code);
+        offset += writter.WriteBytes(buffer[offset..], LeadBytes);
+        offset += writter.WriteString(buffer[offset..], Encoding.Unicode, ExpandedApp);
+        offset += writter.WriteString(buffer[offset..], Encoding.Unicode, ExpandedGroup);
+        offset += writter.WriteString(buffer[offset..], Encoding.Unicode, WizardGroup);
+        offset += writter.WriteString(buffer[offset..], Encoding.Unicode, Language);
+        offset += writter.WriteStringArray(buffer[offset..], Encoding.Unicode, LanguageData);
         return offset;
     }
 

@@ -7,43 +7,41 @@ namespace LibISULR.Records;
 public class RunRecord : BasePathRecord<RunFlags>
 {
     // ReSharper disable FieldCanBeMadeReadOnly.Local
-    private string? path;
-    private string? args;
-    private string? workingDir;
-    private string? runOnceId;
-    private string? verb;
+    private string? _path;
+    private string? _runOnceId;
+    private string? _verb;
     // ReSharper restore FieldCanBeMadeReadOnly.Local
 
     public RunRecord(int flags, byte[] data)
         : base(flags)
     {
-        var splitter = new BufferTools(data);
-        path       = splitter.ReadString();
-        args       = splitter.ReadString();
-        workingDir = splitter.ReadString();
-        runOnceId  = splitter.ReadString();
-        verb       = splitter.ReadString();
+        BufferTools splitter = new(data);
+        _path       = splitter.ReadString();
+        Args       = splitter.ReadString();
+        WorkingDir = splitter.ReadString();
+        _runOnceId  = splitter.ReadString();
+        _verb       = splitter.ReadString();
     }
 
     public override int UpdateContent(Span<byte> buffer)
     {
-        var stringWriter = new BufferTools(buffer);
-        var offset       = stringWriter.WriteString(buffer, Encoding.Unicode, path);
-        offset           += stringWriter.WriteString(buffer.Slice(offset), Encoding.Unicode, args);
-        offset           += stringWriter.WriteString(buffer.Slice(offset), Encoding.Unicode, workingDir);
-        offset           += stringWriter.WriteString(buffer.Slice(offset), Encoding.Unicode, runOnceId);
-        offset           += stringWriter.WriteString(buffer.Slice(offset), Encoding.Unicode, verb);
+        BufferTools stringWriter = new(buffer);
+        int         offset       = stringWriter.WriteString(buffer, Encoding.Unicode, _path);
+        offset           += stringWriter.WriteString(buffer[offset..], Encoding.Unicode, Args);
+        offset           += stringWriter.WriteString(buffer[offset..], Encoding.Unicode, WorkingDir);
+        offset           += stringWriter.WriteString(buffer[offset..], Encoding.Unicode, _runOnceId);
+        offset           += stringWriter.WriteString(buffer[offset..], Encoding.Unicode, _verb);
         buffer[offset++] =  0xFF;
         return offset;
     }
 
     public override RecordType Type => RecordType.Run;
 
-    public override string Description => $"File: \"{path}\" Args: \"{args}\"; At \"{workingDir}\"; Flags: {Flags}";
+    public override string Description => $"File: \"{_path}\" Args: \"{Args}\"; At \"{WorkingDir}\"; Flags: {Flags}";
 
-    public override string? Path => path;
+    public override string? Path => _path;
 
-    public string? Args => args;
+    public string? Args { get; }
 
-    public string? WorkingDir => workingDir;
+    public string? WorkingDir { get; }
 }

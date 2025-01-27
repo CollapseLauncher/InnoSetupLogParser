@@ -10,7 +10,7 @@ public class DeleteFileRecord : BasePathListRecord<DeleteFileFlags>
     public DeleteFileRecord(DeleteFileFlags flags = DeleteFileFlags.DisableFsRedir)
         : base((int)flags)
     {
-        Paths = new List<string?>();
+        Paths = [];
     }
 
     public DeleteFileRecord(int flags, byte[] data)
@@ -21,15 +21,15 @@ public class DeleteFileRecord : BasePathListRecord<DeleteFileFlags>
 
     public static DeleteFileRecord Create(string? path, DeleteFileFlags flags = DeleteFileFlags.DisableFsRedir)
     {
-        var record = new DeleteFileRecord(flags);
+        DeleteFileRecord record = new(flags);
         record.Paths.Add(path);
         return record;
     }
 
     public override int UpdateContent(Span<byte> buffer)
     {
-        var writer = new BufferTools(buffer);
-        var offset = writer.WriteStringList(buffer, Encoding.Unicode, Paths);
+        BufferTools writer = new(buffer);
+        int         offset = writer.WriteStringList(buffer, Encoding.Unicode, Paths);
         return offset;
     }
 
