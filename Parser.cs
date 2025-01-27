@@ -9,6 +9,9 @@ using System.IO;
 using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using System.Text;
+// ReSharper disable CheckNamespace
+// ReSharper disable UnusedMember.Global
+// ReSharper disable CollectionNeverQueried.Global
 
 namespace Hi3Helper.EncTool.Parser.InnoUninstallerLog
 {
